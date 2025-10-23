@@ -1,0 +1,6 @@
+dns.bak:
+    config:
+        - domain: agentlink.top:80
+          type: 1
+        - domain: agentlink.top:8080
+          type: 1

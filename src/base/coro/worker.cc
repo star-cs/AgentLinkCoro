@@ -1,0 +1,209 @@
+#include "worker.h"
+#include "base/conf/config.h"
+#include "base/util.h"
+
+namespace base
+{
+
+static base::ConfigVar<std::map<std::string, std::map<std::string, std::string> > >::ptr
+    g_worker_config = base::Config::Lookup(
+        "workers", std::map<std::string, std::map<std::string, std::string> >(), "worker config");
+
+WorkerGroup::WorkerGroup(uint32_t batch_size, base::Scheduler *s)
+    : m_batchSize(batch_size), m_finish(false), m_scheduler(s), m_sem(batch_size)
+{
+}
+
+WorkerGroup::~WorkerGroup()
+{
+    waitAll();
+}
+
+void WorkerGroup::schedule(std::function<void()> cb, int thread)
+{
+    m_sem.wait();
+    m_scheduler->schedule(std::bind(&WorkerGroup::doWork, shared_from_this(), cb), thread);
+}
+
+void WorkerGroup::schedule(const std::vector<std::function<void()> > &cbs)
+{
+    std::vector<std::function<void()> > cs;
+    for (auto &i : cbs) {
+        cs.push_back(std::bind(&WorkerGroup::doWork, shared_from_this(), i));
+        m_sem.wait();
+    }
+    m_scheduler->schedule(cs.begin(), cs.end());
+}
+
+void WorkerGroup::doWork(std::function<void()> cb)
+{
+    cb();
+    m_sem.notify();
+}
+
+void WorkerGroup::waitAll()
+{
+    if (!m_finish) {
+        m_finish = true;
+        for (uint32_t i = 0; i < m_batchSize; ++i) {
+            m_sem.wait();
+        }
+    }
+}
+
+TimedWorkerGroup::ptr TimedWorkerGroup::Create(uint32_t batch_size, uint32_t wait_ms,
+                                               base::IOManager *s)
+{
+    auto rt = std::make_shared<TimedWorkerGroup>(batch_size, wait_ms, s);
+    rt->start();
+    return rt;
+}
+
+void TimedWorkerGroup::start()
+{
+    m_timer = base::IOManager::GetThis()->addTimer(
+        m_waitTime, std::bind(&TimedWorkerGroup::onTimer, shared_from_this()));
+    // m_timer = m_iomanager->addTimer(m_waitTime, std::bind(&TimedWorkerGroup::onTimer,
+    // shared_from_this()));
+}
+
+void TimedWorkerGroup::onTimer()
+{
+    // std::cout << "=====onTimer======" << std::endl;
+    m_timedout = true;
+    m_timer = nullptr;
+    m_sem.notifyAll();
+}
+
+TimedWorkerGroup::TimedWorkerGroup(uint32_t batch_size, uint32_t wait_ms, base::IOManager *s)
+    : m_batchSize(batch_size), m_finish(false), m_timedout(false), m_waitTime(wait_ms),
+      m_iomanager(s), m_sem(batch_size)
+{
+}
+
+TimedWorkerGroup::~TimedWorkerGroup()
+{
+    waitAll();
+    // std::cout << "====TimedWorkerGroup::~TimedWorkerGroup====" << std::endl;
+}
+
+void TimedWorkerGroup::schedule(std::function<void()> cb, int thread)
+{
+    if (!m_timedout) {
+        m_sem.wait();
+    }
+    m_iomanager->schedule(std::bind(&TimedWorkerGroup::doWork, shared_from_this(), cb), thread);
+}
+
+void TimedWorkerGroup::doWork(std::function<void()> cb)
+{
+    cb();
+    m_sem.notify();
+}
+
+void TimedWorkerGroup::waitAll()
+{
+    if (!m_finish) {
+        m_finish = true;
+        for (uint32_t i = 0; i < m_batchSize && !m_timedout; ++i) {
+            m_sem.wait();
+        }
+
+        // std::cout << "===timeout=" << m_timedout << "====" << std::endl;
+        if (!m_timedout && m_timer) {
+            m_timer->cancel();
+            m_timer = nullptr;
+        }
+    }
+}
+
+WorkerManager::WorkerManager() : m_stop(false)
+{
+}
+
+void WorkerManager::add(Scheduler::ptr s)
+{
+    m_datas[s->getName()].push_back(s);
+}
+
+void WorkerManager::add(const std::string &name, Scheduler::ptr s)
+{
+    m_datas[name].push_back(s);
+}
+
+Scheduler::ptr WorkerManager::get(const std::string &name)
+{
+    auto it = m_datas.find(name);
+    if (it == m_datas.end()) {
+        return nullptr;
+    }
+    if (it->second.size() == 1) {
+        return it->second[0];
+    }
+    static uint32_t s_count = 0;
+    return it->second[base::Atomic::addFetch(s_count) % it->second.size()];
+}
+
+IOManager::ptr WorkerManager::getAsIOManager(const std::string &name)
+{
+    return std::dynamic_pointer_cast<IOManager>(get(name));
+}
+
+bool WorkerManager::init(const std::map<std::string, std::map<std::string, std::string> > &v)
+{
+    for (auto &i : v) {
+        std::string name = i.first;
+        int32_t thread_num = base::GetParamValue(i.second, "thread_num", 1);
+        int32_t worker_num = base::GetParamValue(i.second, "worker_num", 1);
+
+        for (int32_t x = 0; x < worker_num; ++x) {
+            Scheduler::ptr s;
+            if (!x) {
+                s = std::make_shared<IOManager>(thread_num, false, name);
+            } else {
+                s = std::make_shared<IOManager>(thread_num, false, name + "-" + std::to_string(x));
+            }
+            add(name, s);
+        }
+    }
+    m_stop = m_datas.empty();
+    return true;
+}
+
+bool WorkerManager::init()
+{
+    auto workers = g_worker_config->getValue();
+    return init(workers);
+}
+
+void WorkerManager::stop()
+{
+    if (m_stop) {
+        return;
+    }
+    for (auto &i : m_datas) {
+        for (auto &n : i.second) {
+            n->schedule([]() {});
+            n->stop();
+        }
+    }
+    m_datas.clear();
+    m_stop = true;
+}
+
+uint32_t WorkerManager::getCount()
+{
+    return m_datas.size();
+}
+
+std::ostream &WorkerManager::dump(std::ostream &os)
+{
+    for (auto &i : m_datas) {
+        for (auto &n : i.second) {
+            n->dump(os) << std::endl;
+        }
+    }
+    return os;
+}
+
+} // namespace base

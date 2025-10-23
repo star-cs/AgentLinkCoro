@@ -1,0 +1,16 @@
+tconf:
+    id: 101
+    name: agentlink
+    confs:
+        - id: 200
+          name: agentlink-200
+        - id: 300
+          name: agentlink-300
+prometheus_client:
+    interval: 3
+    host: 127.0.0.1
+    port: 1221
+    labels:
+        instance: localhost
+        env: dev
+    job: agentlink
