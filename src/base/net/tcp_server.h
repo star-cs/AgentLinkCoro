@@ -184,6 +184,7 @@ public:
 protected:
     /**
      * @brief 处理新连接的Socket类
+     * 具体实现，由子类继承重写。
      */
     virtual void handleClient(Socket::ptr client);
 

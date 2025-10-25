@@ -423,8 +423,8 @@ protected:
     virtual bool init(int sock) override;
 
 private:
-    std::shared_ptr<SSL_CTX> m_ctx;
-    std::shared_ptr<SSL> m_ssl;
+    std::shared_ptr<SSL_CTX> m_ctx; // SSL上下文，存储SSL配置（如协议版本，证书，私钥）
+    std::shared_ptr<SSL> m_ssl;     // 单个SSL连接，绑定到具体的Socket fd。
 };
 
 /**
