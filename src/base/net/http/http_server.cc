@@ -1,0 +1,78 @@
+#include "http_server.h"
+#include "base/log/log.h"
+#include "base/net/http/servlets/config_servlet.h"
+#ifdef WITH_PROMETHEUS
+#    include "base/net/http/servlets/metrics_servlet.h"
+#endif
+#ifdef _ENABLE_PROFILER
+#    include "base/net/http/servlets/profiler_servlet.h"
+#endif
+#include "base/net/http/servlets/status_servlet.h"
+
+namespace base
+{
+namespace http
+{
+
+    static base::Logger::ptr g_logger = _LOG_NAME("system");
+
+    HttpServer::HttpServer(bool keepalive, base::IOManager *worker, base::IOManager *io_worker,
+                           base::IOManager *accept_worker)
+        : TcpServer(worker, io_worker, accept_worker), m_isKeepalive(keepalive)
+    {
+        m_dispatch = std::make_shared<ServletDispatch>();
+
+        m_type = "http";
+        m_dispatch->addServlet("/_/status", std::make_shared<StatusServlet>());
+        m_dispatch->addServlet("/_/config", std::make_shared<ConfigServlet>());
+#ifdef WITH_PROMETHEUS
+        m_dispatch->addServlet("/metrics", std::make_shared<MetricsServlet>());
+#endif
+#ifdef _ENABLE_PROFILER
+        m_dispatch->addGlobServlet("/profiler/*", std::make_shared<ProfilerServlet>());
+#endif
+    }
+
+    void HttpServer::setName(const std::string &v)
+    {
+        TcpServer::setName(v);
+        m_dispatch->setDefault(std::make_shared<NotFoundServlet>(v));
+    }
+
+    void HttpServer::handleClient(Socket::ptr client)
+    {
+        _LOG_DEBUG(g_logger) << "handleClient " << *client;
+        // base::TimeCalc tc;
+        HttpSession::ptr session = std::make_shared<HttpSession>(client);
+        do {
+            auto req = session->recvRequest();
+            // tc.tick("recv");
+            if (!req) {
+                _LOG_DEBUG(g_logger)
+                    << "recv http request fail, errno=" << errno << " errstr=" << strerror(errno)
+                    << " cliet:" << *client << " keep_alive=" << m_isKeepalive;
+                break;
+            }
+
+            HttpResponse::ptr rsp =
+                std::make_shared<HttpResponse>(req->getVersion(), req->isClose() || !m_isKeepalive);
+            rsp->setHeader("Server", getName());
+            rsp->setHeader("Content-Type", "application/json;charset=utf8");
+            {
+                base::SchedulerSwitcher sw(m_worker);
+                m_dispatch->handle(req, rsp, session);
+            }
+            // tc.tick("handler");
+            session->sendResponse(rsp);
+            // tc.tick("response");
+            // _LOG_ERROR(g_logger) << "elapse=" << tc.elapse() << " - " << tc.toString();
+
+            if (!m_isKeepalive || req->isClose()) {
+                break;
+            }
+        } while (true);
+        session->close();
+    }
+
+} // namespace http
+} // namespace base

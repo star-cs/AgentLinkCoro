@@ -1,6 +1,7 @@
 #pragma once
 
 #include "base/mutex.h"
+#include <string>
 
 namespace base
 {

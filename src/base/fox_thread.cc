@@ -482,8 +482,8 @@ void FoxThreadManager::init()
         auto name = i.first;
         auto advance = base::GetParamValue(i.second, "advance", 0);
         if (num <= 0) {
-            _LOG_ERROR(g_logger)
-                << "thread pool:" << name << " num:" << num << " advance:" << advance << " invalid";
+            _LOG_ERROR(g_logger) << "thread pool:" << name << " num:" << num
+                                 << " advance:" << advance << " invalid";
             continue;
         }
         if (num == 1) {
@@ -491,8 +491,8 @@ void FoxThreadManager::init()
             _LOG_INFO(g_logger) << "init thread : " << i.first;
         } else {
             m_threads[i.first] = std::make_shared<FoxThreadPool>(num, name, advance);
-            _LOG_INFO(g_logger)
-                << "init thread pool:" << name << " num:" << num << " advance:" << advance;
+            _LOG_INFO(g_logger) << "init thread pool:" << name << " num:" << num
+                                << " advance:" << advance;
         }
     }
 }
@@ -520,4 +520,4 @@ void FoxThreadManager::stop()
     }
 }
 
-} // namespace sylar
+} // namespace base

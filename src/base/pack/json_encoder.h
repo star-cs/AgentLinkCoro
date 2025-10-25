@@ -2,6 +2,7 @@
 
 #include <json/json.h>
 #include "base/pack/pack.h"
+#include "base/util.h"
 #include <list>
 #include <set>
 #include <map>

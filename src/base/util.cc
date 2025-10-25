@@ -944,13 +944,13 @@ static void serialize_unknowfieldset(const google::protobuf::UnknownFieldSet &uf
                 break;
             case google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED:
                 google::protobuf::UnknownFieldSet tmp;
-                auto &v = uf.length_delimited();
+                auto v = uf.length_delimited();
                 if (!v.empty() && tmp.ParseFromString(v)) {
                     Json::Value vv;
                     serialize_unknowfieldset(tmp, vv);
                     kvs[uf.number()].push_back(vv);
                 } else {
-                    kvs[uf.number()].push_back(v);
+                    kvs[uf.number()].push_back(std::string(v));
                 }
                 break;
         }
@@ -991,7 +991,7 @@ static void serialize_message(const google::protobuf::Message &message, Json::Va
     case google::protobuf::FieldDescriptor::CPPTYPE_##cpptype: {                                   \
         int size = reflection->FieldSize(message, field);                                          \
         for (int n = 0; n < size; ++n) {                                                           \
-            jnode[field->name()].append(                                                           \
+            jnode[field->name().data()].append(                                                    \
                 (jsontype)reflection->GetRepeated##method(message, field, n));                     \
         }                                                                                          \
         break;                                                                                     \
@@ -1007,7 +1007,7 @@ static void serialize_message(const google::protobuf::Message &message, Json::Va
                 case google::protobuf::FieldDescriptor::CPPTYPE_ENUM: {
                     int size = reflection->FieldSize(message, field);
                     for (int n = 0; n < size; ++n) {
-                        jnode[field->name()].append(
+                        jnode[field->name().data()].append(
                             reflection->GetRepeatedEnum(message, field, n)->number());
                     }
                     break;
@@ -1015,7 +1015,7 @@ static void serialize_message(const google::protobuf::Message &message, Json::Va
                 case google::protobuf::FieldDescriptor::CPPTYPE_STRING: {
                     int size = reflection->FieldSize(message, field);
                     for (int n = 0; n < size; ++n) {
-                        jnode[field->name()].append(
+                        jnode[field->name().data()].append(
                             reflection->GetRepeatedString(message, field, n));
                     }
                     break;
@@ -1025,7 +1025,7 @@ static void serialize_message(const google::protobuf::Message &message, Json::Va
                     for (int n = 0; n < size; ++n) {
                         Json::Value vv;
                         serialize_message(reflection->GetRepeatedMessage(message, field, n), vv);
-                        jnode[field->name()].append(vv);
+                        jnode[field->name().data()].append(vv);
                     }
                     break;
                 }
@@ -1036,7 +1036,7 @@ static void serialize_message(const google::protobuf::Message &message, Json::Va
         switch (field->cpp_type()) {
 #define XX(cpptype, method, valuetype, jsontype)                                                   \
     case google::protobuf::FieldDescriptor::CPPTYPE_##cpptype: {                                   \
-        jnode[field->name()] = (jsontype)reflection->Get##method(message, field);                  \
+        jnode[field->name().data()] = (jsontype)reflection->Get##method(message, field);           \
         break;                                                                                     \
     }
             XX(INT32, Int32, int32_t, Json::Int);
@@ -1048,15 +1048,16 @@ static void serialize_message(const google::protobuf::Message &message, Json::Va
             XX(UINT64, UInt64, uint64_t, Json::UInt64);
 #undef XX
             case google::protobuf::FieldDescriptor::CPPTYPE_ENUM: {
-                jnode[field->name()] = reflection->GetEnum(message, field)->number();
+                jnode[field->name().data()] = reflection->GetEnum(message, field)->number();
                 break;
             }
             case google::protobuf::FieldDescriptor::CPPTYPE_STRING: {
-                jnode[field->name()] = reflection->GetString(message, field);
+                jnode[field->name().data()] = reflection->GetString(message, field);
                 break;
             }
             case google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE: {
-                serialize_message(reflection->GetMessage(message, field), jnode[field->name()]);
+                serialize_message(reflection->GetMessage(message, field),
+                                  jnode[field->name().data()]);
                 break;
             }
         }

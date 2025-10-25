@@ -6,9 +6,6 @@ service_discovery:
 xrock_services:
     agentlink.top:
         all: fair
-grpc_services:
-    default:
-        recommend-recall: fair
 consul:
     register_info:
         Name: test-xxx

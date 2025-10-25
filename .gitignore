@@ -57,3 +57,6 @@ system.txt
 tests_log
 .vscode
 .cache
+
+# conan
+CMakeUserPresets.json

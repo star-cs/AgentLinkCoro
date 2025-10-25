@@ -21,7 +21,7 @@ void test_fiber()
     {
         base::Fiber::ptr main_fiber = base::Fiber::GetThis();
         _LOG_INFO(g_logger) << "main begin";
-        base::Fiber::ptr fiber(base::NewFiber(run_in_fiber, 128 * 1024, true));
+        base::Fiber::ptr fiber(base::NewFiber(run_in_fiber, 128 * 1024, true), base::FreeFiber);
 
         // 使用call()和back()方法进行协程切换，而不是swapIn()/swapOut()
         fiber->call();
