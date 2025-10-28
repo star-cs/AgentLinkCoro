@@ -4,6 +4,7 @@
 #include "base/mutex.h"
 #include <map>
 #include <vector>
+#include <string>
 
 namespace base
 {

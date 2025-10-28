@@ -579,6 +579,8 @@ public:
 
     /**
      * @brief 加载path文件夹里面的配置文件
+     * @param[in] path 配置文件夹路径
+     * @param[in] force 是否强制加载,强制加载会重新加载已经加载过的配置文件
      */
     static void LoadFromConfDir(const std::string &path, bool force = false);
 
