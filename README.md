@@ -20,12 +20,15 @@ conan install ..
 conan install .. --build=missing # 有些依赖需要本地构建
 ```
 
-
-
 # 技术实现进度
 - ✅ 协程网络库
-- ⬜ Rock RPC （自定义二进制协议 / Json-RPC ）
-- ⬜ safe_udp
+- ✅ Rock RPC （自定义二进制协议）
+- ⬜ dpdk 实现用户态 TCP/IP 协议栈
 - ⬜ ebpf 监控
-- ⬜ dpdk 实现用户态 udp 协议栈
-- ⬜ 智能体协调
+- ⬜ MCP Server
+- ⬜ Agent 智能体协调 
+- ❎ quic 暂时搁置，在 dev_quic 分支
+
+# 参考项目
+- [sylar](https://github.com/sylar-yin/sylar)
+- [quic-fiber](https://github.com/hankai17/quic-fiber)

@@ -3,7 +3,7 @@ service_discovery:
     consul: http://consul-sit.mid.io:8500
     redis.1:
         name: local
-xrock_services:
+rock_services:
     agentlink.top:
         all: fair
 consul:
